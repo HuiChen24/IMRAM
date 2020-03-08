@@ -36,8 +36,6 @@ def main():
     opt.split = opts.split
     opt.data_path = opts.data_path
     opt.fold5 = opts.fold5
-    if vars(opt).get("lambda_label_loss", None) is None:
-        opt.lambda_label_loss = 0
 
     # load vocabulary used by the model
     vocab = deserialize_vocab(os.path.join(opt.vocab_path, '%s_vocab.json' % opt.data_name))

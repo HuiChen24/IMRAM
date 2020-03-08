@@ -70,7 +70,7 @@ def main():
                   .format(opt.resume, start_epoch, best_rsum))
         else:
             print("=> no checkpoint found at '{}'".format(opt.resume))
-    #evalrank(model.module, val_loader, opt)
+    evalrank(model.module, val_loader, opt)
 
     print(opt, flush=True)
     

@@ -141,6 +141,8 @@ def shard_xattn(model, images_fc, images, caption_ht, captions, caplens, opt, sh
         sims = shard_xattn_Image_IMRAM(model, images_fc, images, caption_ht, captions, caplens, opt, shard_size=128)
     elif opt.model_mode == "text_IMRAM":
         sims = shard_xattn_Text_IMRAM(model, images_fc, images, caption_ht, captions, caplens, opt, shard_size=128)
+    else:
+      assert False, "wrong model mode"
     return sims
 
 def shard_xattn_Full_IMRAM(model, images_fc, images, caption_ht, captions, caplens, opt, shard_size=128):
@@ -152,8 +154,8 @@ def shard_xattn_Full_IMRAM(model, images_fc, images, caption_ht, captions, caple
     
     print("n_im_shard: %d, n_cap_shard: %d" % (n_im_shard, n_cap_shard))
 
-    d_t2i = [np.zeros((len(images), len(captions))) for _ in range(opt.routing_step)]
-    d_i2t = [np.zeros((len(images), len(captions))) for _ in range(opt.routing_step)]
+    d_t2i = [np.zeros((len(images), len(captions))) for _ in range(opt.iteration_step)]
+    d_i2t = [np.zeros((len(images), len(captions))) for _ in range(opt.iteration_step)]
 
     for i in range(n_im_shard):
         im_start, im_end = shard_size*i, min(shard_size*(i+1), len(images))
@@ -164,17 +166,17 @@ def shard_xattn_Full_IMRAM(model, images_fc, images, caption_ht, captions, caple
             h = torch.from_numpy(caption_ht[cap_start:cap_end]).cuda()
             s = torch.from_numpy(captions[cap_start:cap_end]).cuda()
             l = caplens[cap_start:cap_end]
-            sim_list_t2i = model.xattn_score_t2i_routing(im_fc, im_emb, h, s, l, opt)
-            sim_list_i2t = model.xattn_score_i2t_routing(im_fc, im_emb, h, s, l, opt)
-            assert len(sim_list_t2i) == opt.routing_step and len(sim_list_i2t) == opt.routing_step
-            for k in range(opt.routing_step):
+            sim_list_t2i = model.xattn_score_Text_IMRAM(im_fc, im_emb, h, s, l, opt)
+            sim_list_i2t = model.xattn_score_Image_IMRAM(im_fc, im_emb, h, s, l, opt)
+            assert len(sim_list_t2i) == opt.iteration_step and len(sim_list_i2t) == opt.iteration_step
+            for k in range(opt.iteration_step):
                 d_t2i[k][im_start:im_end, cap_start:cap_end] = sim_list_t2i[k].data.cpu().numpy()
                 d_i2t[k][im_start:im_end, cap_start:cap_end] = sim_list_i2t[k].data.cpu().numpy()
 
     score = 0
-    for j in range(opt.routing_step):
+    for j in range(opt.iteration_step):
         score += d_t2i[j]
-    for j in range(opt.routing_step):
+    for j in range(opt.iteration_step):
         score += d_i2t[j]
 
     return score
@@ -188,7 +190,7 @@ def shard_xattn_Text_IMRAM(model, images_fc, images, caption_ht, captions, caple
     
     print("n_im_shard: %d, n_cap_shard: %d" % (n_im_shard, n_cap_shard))
 
-    d = [np.zeros((len(images), len(captions))) for _ in range(opt.routing_step)]
+    d = [np.zeros((len(images), len(captions))) for _ in range(opt.iteration_step)]
 
     for i in range(n_im_shard):
         im_start, im_end = shard_size*i, min(shard_size*(i+1), len(images))
@@ -199,13 +201,13 @@ def shard_xattn_Text_IMRAM(model, images_fc, images, caption_ht, captions, caple
             h = torch.from_numpy(caption_ht[cap_start:cap_end]).cuda()
             s = torch.from_numpy(captions[cap_start:cap_end]).cuda()
             l = caplens[cap_start:cap_end]
-            sim_list = model.xattn_score_t2i_routing(im_fc, im_emb, h, s, l, opt)
-            assert len(sim_list) == opt.routing_step
-            for k in range(opt.routing_step):
+            sim_list = model.xattn_score_Text_IMRAM(im_fc, im_emb, h, s, l, opt)
+            assert len(sim_list) == opt.iteration_step
+            for k in range(opt.iteration_step):
                 d[k][im_start:im_end, cap_start:cap_end] = sim_list[k].data.cpu().numpy()
 
     score = 0
-    for j in range(opt.routing_step):
+    for j in range(opt.iteration_step):
         score += d[j]
 
     return score
@@ -219,7 +221,7 @@ def shard_xattn_Image_IMRAM(model, images_fc, images, caption_ht, captions, capl
     
     print("n_im_shard: %d, n_cap_shard: %d" % (n_im_shard, n_cap_shard))
 
-    d = [np.zeros((len(images), len(captions))) for _ in range(opt.routing_step)]
+    d = [np.zeros((len(images), len(captions))) for _ in range(opt.iteration_step)]
 
     for i in range(n_im_shard):
         im_start, im_end = shard_size*i, min(shard_size*(i+1), len(images))
@@ -230,14 +232,14 @@ def shard_xattn_Image_IMRAM(model, images_fc, images, caption_ht, captions, capl
             h = torch.from_numpy(caption_ht[cap_start:cap_end]).cuda()
             s = torch.from_numpy(captions[cap_start:cap_end]).cuda()
             l = caplens[cap_start:cap_end]
-            sim_list = model.xattn_score_i2t_routing(im_fc, im_emb, h, s, l, opt)
-            assert len(sim_list) == opt.routing_step
-            for k in range(opt.routing_step):
+            sim_list = model.xattn_score_Image_IMRAM(im_fc, im_emb, h, s, l, opt)
+            assert len(sim_list) == opt.iteration_step
+            for k in range(opt.iteration_step):
                 if len(sim_list[k]) != 0:
                     d[k][im_start:im_end, cap_start:cap_end] = sim_list[k].data.cpu().numpy()
 
     score = 0
-    for j in range(opt.routing_step):
+    for j in range(opt.iteration_step):
         score += d[j]
     return score
 
